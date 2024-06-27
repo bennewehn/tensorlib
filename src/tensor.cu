@@ -639,3 +639,90 @@ Tensor *multiplyTensor(const Tensor *t1, const Tensor *t2)
         return t;
     }
 }
+
+__global__ void divideInPlaceTensorKernel(float *d_data1, float *d_data2, int t1_offset, int t2_offset, int num_elements)
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < num_elements)
+    {
+        d_data1[tid + t1_offset] /= d_data2[tid + t2_offset];
+    }
+}
+
+// Divides t1 by t2. t1 /= t2
+void divideTensorInPlace(Tensor *t1, Tensor *t2)
+{
+
+    if (!(ensureSameDevice(t1, t2), ensureSameShape(t1, t2)))
+        return;
+
+    if (*t1->isOnGpu)
+    {
+        int minGridSize;
+        int blockSize;
+
+        cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, setTensorKernel, 0, 0);
+
+        int gridSize = (t1->num_elements + blockSize - 1) / blockSize;
+
+        divideInPlaceTensorKernel<<<gridSize, blockSize>>>(t1->data, t2->data, t1->start_idx, t2->start_idx, t1->num_elements);
+        cudaDeviceSynchronize();
+    }
+    else
+    {
+        // serial way
+        for (int i = 0; i < t1->num_elements; i++)
+        {
+            t1->data[i + t1->start_idx] /= t2->data[i + t2->start_idx];
+        }
+    }
+}
+
+__global__ void divideTensorKernel(float *d_data1, float *d_data2, float *d_out, int t1_offset, int t2_offset, int num_elements)
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < num_elements)
+    {
+        d_out[tid] = d_data1[tid + t1_offset] / d_data2[tid + t2_offset];
+    }
+}
+
+Tensor *divideTensor(const Tensor *t1, const Tensor *t2)
+{
+    if (!(ensureSameDevice(t1, t2), ensureSameShape(t1, t2)))
+        return NULL;
+
+
+    if (*t1->isOnGpu)
+    {
+        int minGridSize;
+        int blockSize;
+
+        cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, setTensorKernel, 0, 0);
+
+        int gridSize = (t1->num_elements + blockSize - 1) / blockSize;
+
+        Tensor *t = createTensorGPU(t1->shape, t1->num_dims);
+        if(!t) return NULL;
+
+        divideTensorKernel<<<gridSize, blockSize>>>(t1->data, t2->data, t->data, t1->start_idx, t2->start_idx, t1->num_elements);
+        cudaDeviceSynchronize();
+
+        return t;
+    }
+    else
+    {
+        Tensor *t = createTensorCPU(t1->shape, t1->num_dims);
+        if(!t) return NULL;
+
+        // serial way
+        for (int i = 0; i < t1->num_elements; i++)
+        {
+            t->data[i] = t1->data[i + t1->start_idx] / t2->data[i + t2->start_idx];
+        }
+
+        return t;
+    }
+}
