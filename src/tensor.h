@@ -21,7 +21,7 @@ Tensor* createTensorCPU(const int *shape, int num_dims);
 Tensor *createTensorCPU(float *data, const int *shape, int num_dims);
 int moveTensorToGPU(Tensor* tensor);
 int moveTensorToCPU(Tensor* tensor);
-void printTensor(const Tensor *t);
+void print(const Tensor *t);
 Tensor *getTensorByIdx(Tensor *t, const int *idx, int idx_len);
 void freeTensor(Tensor *t);
 void setTensorAt(Tensor *tensor, const int *index, int len_index, float value);
@@ -43,5 +43,8 @@ Tensor *multiplyTensor(const Tensor *t1, const Tensor *t2);
 
 void divideTensorInPlace(Tensor *t1, Tensor *t2);
 Tensor *divideTensor(const Tensor *t1, const Tensor *t2);
+
+void subTensorInPlace(Tensor *t1, Tensor *t2);
+Tensor *subTensor(const Tensor *t1, const Tensor *t2);
 
 #endif
