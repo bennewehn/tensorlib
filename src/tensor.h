@@ -35,5 +35,8 @@ void printShape(const Tensor *tensor);
 void addTensorInPlace(Tensor *t1, Tensor *t2);
 Tensor *addTensor(const Tensor *t1, const Tensor *t2);
 
+void multiplyTensorInPlace(Tensor *t1, Tensor *t2);
+Tensor *multiplyTensor(const Tensor *t1, const Tensor *t2);
+
 
 #endif
