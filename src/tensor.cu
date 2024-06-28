@@ -1053,3 +1053,76 @@ Tensor *logTensor(const Tensor *tensor)
         return t;
     }
 }
+
+__global__ void reluTensorKernel(float *input, float *output, int offset, int n) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) {
+        output[idx] = fmaxf(0.0f, input[idx + offset]);
+    }
+}
+
+Tensor *reluTensor(const Tensor *tensor)
+{
+    if (*tensor->isOnGpu)
+    {
+        int minGridSize;
+        int blockSize;
+
+        cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, reluTensorKernel, 0, 0);
+
+        int gridSize = (tensor->num_elements + blockSize - 1) / blockSize;
+
+        Tensor *t = createTensorGPU(tensor->shape, tensor->num_dims);
+        if(!t) return NULL;
+
+        reluTensorKernel<<<gridSize, blockSize>>>(tensor->data, t->data, tensor->start_idx, tensor->num_elements);
+        cudaDeviceSynchronize();
+
+        return t;
+    }
+    else
+    {
+        Tensor *t = createTensorCPU(tensor->shape, tensor->num_dims);
+        if(!t) return NULL;
+
+        // serial way
+        for (int i = 0; i < tensor->num_elements; i++)
+        {
+            t->data[i] = fmaxf(0.0f, tensor->data[i + tensor->start_idx]);
+        }
+
+        return t;
+    }
+}
+
+__global__ void reluTensorInPlaceKernel(float *input, int offset, int n) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) {
+        input[idx + offset] = fmaxf(0.0f, input[idx]);
+    }
+}
+
+// Relu in place
+void reluTensorInPlace(Tensor *t1)
+{
+    if (*t1->isOnGpu)
+    {
+        int minGridSize;
+        int blockSize;
+
+        cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, reluTensorInPlaceKernel, 0, 0);
+
+        int gridSize = (t1->num_elements + blockSize - 1) / blockSize;
+
+        reluTensorInPlaceKernel<<<gridSize, blockSize>>>(t1->data, t1->start_idx, t1->num_elements);
+        cudaDeviceSynchronize();
+    }
+    else
+    {
+        // serial way
+        for (int i = 0; i < t1->num_elements; i++)
+        {
+            t1->data[i + t1->start_idx] = fmaxf(0.00f, t1->data[i + t1->start_idx]);
+        }
+    }
+}

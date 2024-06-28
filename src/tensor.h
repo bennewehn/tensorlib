@@ -59,4 +59,7 @@ Tensor *expTensor(const Tensor *tensor);
 void logTensorInPlace(Tensor *tensor);
 Tensor *logTensor(const Tensor *tensor);
 
+Tensor *reluTensor(const Tensor *tensor);
+void reluTensorInPlace(Tensor *t1);
+
 #endif
