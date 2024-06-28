@@ -466,6 +466,87 @@ bool ensureSameShape(const Tensor *t1, const Tensor *t2)
     return true;
 }
 
+__global__ void powTensorInPlaceKernel(float *data, int num_elements, int mem_offset, float exponent)
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < num_elements)
+    {
+        data[tid + mem_offset] = powf(data[tid + mem_offset], exponent);
+    }
+}
+
+void powTensorInPlace(Tensor *tensor, float exponent)
+{
+    if (*tensor->isOnGpu)
+    {
+        int minGridSize;
+        int blockSize;
+
+        cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, powTensorInPlaceKernel, 0, 0);
+
+        int gridSize = (tensor->num_elements + blockSize - 1) / blockSize;
+
+        powTensorInPlaceKernel<<<gridSize, blockSize>>>(tensor->data, tensor->num_elements, tensor->start_idx, exponent);
+        cudaDeviceSynchronize();
+    }
+    else
+    {
+        // serial way
+        for (int i = 0; i < tensor->num_elements; i++)
+        {
+            tensor->data[i + tensor->start_idx] = powf(tensor->data[i + tensor->start_idx], exponent);
+        }
+    }
+}
+
+__global__ void powTensorKernel(float *d_data, float *d_out, int exponent, int offset, int num_elements)
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < num_elements)
+    {
+        d_out[tid] = powf(d_data[tid + offset], exponent); 
+    }
+}
+
+
+Tensor *powTensor(const Tensor *t1, float exponent)
+{
+
+    if (*t1->isOnGpu)
+    {
+        int minGridSize;
+        int blockSize;
+
+        cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, powTensorKernel, 0, 0);
+
+        int gridSize = (t1->num_elements + blockSize - 1) / blockSize;
+
+        Tensor *t = createTensorGPU(t1->shape, t1->num_dims);
+        if(!t) return NULL;
+
+        powTensorKernel<<<gridSize, blockSize>>>(t1->data, t->data, exponent, t1->start_idx, t1->num_elements);
+        cudaDeviceSynchronize();
+
+        return t;
+    }
+    else
+    {
+        Tensor *t = createTensorCPU(t1->shape, t1->num_dims);
+        if(!t) return NULL;
+
+        // serial way
+        for (int i = 0; i < t1->num_elements; i++)
+        {
+            t->data[i] = powf(t1->data[i + t1->start_idx], exponent);
+        }
+
+        return t;
+    }
+}
+
+
 __global__ void addInPlaceTensorKernel(float *d_data1, float *d_data2, int t1_offset, int t2_offset, int num_elements)
 {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
