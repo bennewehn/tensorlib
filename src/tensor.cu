@@ -893,3 +893,82 @@ Tensor *expTensor(const Tensor *tensor)
         return t;
     }
 }
+
+__global__ void logInPlaceTensorKernel(float *d_data, int offset, int num_elements)
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < num_elements)
+    {
+        d_data[tid + offset] = logf(d_data[tid + offset]);
+    }
+}
+
+// Log in place
+void logTensorInPlace(Tensor *t1)
+{
+    if (*t1->isOnGpu)
+    {
+        int minGridSize;
+        int blockSize;
+
+        cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, logInPlaceTensorKernel, 0, 0);
+
+        int gridSize = (t1->num_elements + blockSize - 1) / blockSize;
+
+        logInPlaceTensorKernel<<<gridSize, blockSize>>>(t1->data, t1->start_idx, t1->num_elements);
+        cudaDeviceSynchronize();
+    }
+    else
+    {
+        // serial way
+        for (int i = 0; i < t1->num_elements; i++)
+        {
+            t1->data[i + t1->start_idx] = logf(t1->data[i + t1->start_idx]);
+        }
+    }
+}
+
+__global__ void logTensorKernel(float *d_data, float *d_out, int offset, int num_elements)
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid < num_elements)
+    {
+        d_out[tid] = logf(d_data[tid + offset]);
+    }
+}
+
+Tensor *logTensor(const Tensor *tensor)
+{
+    if (*tensor->isOnGpu)
+    {
+        int minGridSize;
+        int blockSize;
+
+        cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, logTensorKernel, 0, 0);
+
+        int gridSize = (tensor->num_elements + blockSize - 1) / blockSize;
+
+        Tensor *t = createTensorGPU(tensor->shape, tensor->num_dims);
+        if(!t) return NULL;
+
+        logTensorKernel<<<gridSize, blockSize>>>(tensor->data, t->data, tensor->start_idx, tensor->num_elements);
+        cudaDeviceSynchronize();
+
+        return t;
+    }
+    else
+    {
+        Tensor *t = createTensorCPU(tensor->shape, tensor->num_dims);
+        if(!t) return NULL;
+
+        // serial way
+        for (int i = 0; i < tensor->num_elements; i++)
+        {
+            t->data[i] = logf(tensor->data[i + tensor->start_idx]);
+        }
+
+        return t;
+    }
+}

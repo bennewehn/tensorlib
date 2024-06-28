@@ -50,7 +50,10 @@ Tensor *subTensor(const Tensor *t1, const Tensor *t2);
 
 // Unary Operators:
 
-void expTensorInPlace(Tensor *t1);
+void expTensorInPlace(Tensor *tensor);
 Tensor *expTensor(const Tensor *tensor);
+
+void logTensorInPlace(Tensor *tensor);
+Tensor *logTensor(const Tensor *tensor);
 
 #endif
