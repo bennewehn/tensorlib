@@ -47,4 +47,10 @@ Tensor *divideTensor(const Tensor *t1, const Tensor *t2);
 void subTensorInPlace(Tensor *t1, Tensor *t2);
 Tensor *subTensor(const Tensor *t1, const Tensor *t2);
 
+
+// Unary Operators:
+
+void expTensorInPlace(Tensor *t1);
+Tensor *expTensor(const Tensor *tensor);
+
 #endif
